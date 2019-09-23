@@ -423,7 +423,8 @@ public class MmTelFeatureConnection {
     private Context mContext;
     private Executor mExecutor;
 
-    private volatile boolean mIsAvailable = false;
+    // We are assuming the feature is available when started.
+    private volatile boolean mIsAvailable = true;
     // ImsFeature Status from the ImsService. Cached.
     private Integer mFeatureStateCached = null;
     private IFeatureUpdate mStatusCallback;
@@ -556,8 +557,9 @@ public class MmTelFeatureConnection {
         public void imsStatusChanged(int slotId, int feature, int status) {
             mExecutor.execute(() -> {
                 synchronized (mLock) {
-                    Log.i(TAG, "imsStatusChanged: slot: " + slotId + " feature: " + feature +
-                            " status: " + status);
+                    Log.i(TAG, "imsStatusChanged: slot: " + slotId + " feature: "
+                            + ImsFeature.FEATURE_LOG_MAP.get(feature) +
+                            " status: " + ImsFeature.STATE_LOG_MAP.get(status));
                     if (mSlotId == slotId && feature == ImsFeature.FEATURE_MMTEL) {
                         mFeatureStateCached = status;
                         if (mStatusCallback != null) {
@@ -900,16 +902,16 @@ public class MmTelFeatureConnection {
             }
         }
         // Don't synchronize on Binder call.
-        Integer status = retrieveFeatureState();
+        Integer state = retrieveFeatureState();
         synchronized (mLock) {
-            if (status == null) {
+            if (state == null) {
                 return ImsFeature.STATE_UNAVAILABLE;
             }
             // Cache only non-null value for feature status.
-            mFeatureStateCached = status;
+            mFeatureStateCached = state;
         }
-        Log.i(TAG, "getFeatureState - returning " + status);
-        return status;
+        Log.i(TAG, "getFeatureState - returning " + ImsFeature.STATE_LOG_MAP.get(state));
+        return state;
     }
 
     /**
