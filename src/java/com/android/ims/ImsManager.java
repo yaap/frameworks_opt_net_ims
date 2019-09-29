@@ -275,6 +275,7 @@ public class ImsManager {
         private final Listener mListener;
         private final Executor mExecutor;
         private final Object mLock = new Object();
+        private final String mLogPrefix;
 
         private int mRetryCount = 0;
         private ImsManager mImsManager;
@@ -295,14 +296,25 @@ public class ImsManager {
             mPhoneId = phoneId;
             mListener = listener;
             mExecutor = new HandlerExecutor(this);
+            mLogPrefix = "?";
+        }
+
+        public Connector(Context context, int phoneId, Listener listener, String logPrefix) {
+            mContext = context;
+            mPhoneId = phoneId;
+            mListener = listener;
+            mExecutor = new HandlerExecutor(this);
+            mLogPrefix = logPrefix;
         }
 
         @VisibleForTesting
-        public Connector(Context context, int phoneId, Listener listener, Executor executor) {
+        public Connector(Context context, int phoneId, Listener listener, Executor executor,
+                String logPrefix) {
             mContext = context;
             mPhoneId = phoneId;
             mListener= listener;
             mExecutor = executor;
+            mLogPrefix = logPrefix;
         }
 
 
@@ -350,7 +362,10 @@ public class ImsManager {
 
                 // Exponential backoff during retry, limited to 32 seconds.
                 removeCallbacks(mGetServiceRunnable);
-                postDelayed(mGetServiceRunnable, mRetryTimeout.get());
+                int timeout = mRetryTimeout.get();
+                postDelayed(mGetServiceRunnable, timeout);
+                Log.i(TAG, getLogMessage("retryGetImsService: unavailable, retrying in " + timeout
+                        + " seconds"));
             }
         }
 
@@ -376,7 +391,7 @@ public class ImsManager {
                 mListener.connectionReady(manager);
             }
             catch (ImsException e) {
-                Log.w(TAG, "Connector: notifyReady exception: " + e.getMessage());
+                Log.w(TAG, getLogMessage("notifyReady exception: " + e.getMessage()));
                 throw e;
             }
             // Only reset retry count if connectionReady does not generate an ImsException/
@@ -387,6 +402,10 @@ public class ImsManager {
 
         private void notifyNotReady() {
             mListener.connectionUnavailable();
+        }
+
+        private String getLogMessage(String message) {
+            return "Connector-[" + mLogPrefix + "] " + message;
         }
     }
 
@@ -1428,6 +1447,12 @@ public class ImsManager {
 
         if (!mConfigUpdated || force) {
             try {
+                PersistableBundle imsCarrierConfigs =
+                        mConfigManager.getConfigByComponentForSubId(
+                                CarrierConfigManager.Ims.KEY_PREFIX, getSubId());
+
+                updateImsCarrierConfigs(imsCarrierConfigs);
+
                 // Note: currently the order of updates is set to produce different order of
                 // changeEnabledCapabilities() function calls from setAdvanced4GMode(). This is done
                 // to differentiate this code path from vendor code perspective.
@@ -2159,15 +2184,24 @@ public class ImsManager {
     public boolean updateRttConfigValue() {
         boolean isCarrierSupported =
                 getBooleanCarrierConfig(CarrierConfigManager.KEY_RTT_SUPPORTED_BOOL);
-        boolean isRttAlwaysEnabled =
-                getBooleanCarrierConfig(CarrierConfigManager.KEY_RTT_ALWAYS_ENABLED_BOOL);
-        boolean isRttEnabled = Settings.Secure.getInt(mContext.getContentResolver(),
-                Settings.Secure.RTT_CALLING_MODE, 0) != 0 || isRttAlwaysEnabled;
-        Log.i(ImsManager.class.getSimpleName(), "update RTT value " + isRttEnabled);
-        if (isCarrierSupported == true) {
-            setRttConfig(isRttEnabled);
+        if (getBooleanCarrierConfig(CarrierConfigManager.KEY_RTT_ALWAYS_ENABLED_BOOL)) {
+            Settings.Secure.putInt(mContext.getContentResolver(),
+                    Settings.Secure.RTT_CALLING_MODE + convertRttPhoneId(mPhoneId), 1);
         }
-        return isCarrierSupported && isRttEnabled;
+        boolean isRttUiSettingEnabled = Settings.Secure.getInt(mContext.getContentResolver(),
+                Settings.Secure.RTT_CALLING_MODE + convertRttPhoneId(mPhoneId), 0) != 0;
+        boolean isRttAlwaysOnCarrierConfig = getBooleanCarrierConfig(
+                CarrierConfigManager.KEY_IGNORE_RTT_MODE_SETTING_BOOL);
+
+        boolean shouldImsRttBeOn = isRttUiSettingEnabled || isRttAlwaysOnCarrierConfig;
+        Log.i(ImsManager.class.getSimpleName(), "update RTT: settings value: "
+                + isRttUiSettingEnabled + " always-on carrierconfig: "
+                + isRttAlwaysOnCarrierConfig);
+
+        if (isCarrierSupported) {
+            setRttConfig(shouldImsRttBeOn);
+        }
+        return isCarrierSupported && shouldImsRttBeOn;
     }
 
     private void setRttConfig(boolean enabled) {
@@ -2183,6 +2217,10 @@ public class ImsManager {
                         + enabled + ": " + e);
             }
         });
+    }
+
+    private static String convertRttPhoneId(int phoneId) {
+        return phoneId != 0 ? Integer.toString(phoneId) : "";
     }
 
     public boolean queryMmTelCapability(
@@ -2805,5 +2843,21 @@ public class ImsManager {
     private boolean isSubIdValid(int subId) {
         return SubscriptionManager.isValidSubscriptionId(subId) &&
                 subId != SubscriptionManager.DEFAULT_SUBSCRIPTION_ID;
+    }
+
+    private void updateImsCarrierConfigs(PersistableBundle configs) throws ImsException {
+        checkAndThrowExceptionIfServiceUnavailable();
+
+        IImsConfig config = mMmTelFeatureConnection.getConfigInterface();
+        if (config == null) {
+            throw new ImsException("getConfigInterface()",
+                    ImsReasonInfo.CODE_LOCAL_SERVICE_UNAVAILABLE);
+        }
+        try {
+            config.updateImsCarrierConfigs(configs);
+        } catch (RemoteException e) {
+            throw new ImsException("updateImsCarrierConfigs()", e,
+                    ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
+        }
     }
 }
