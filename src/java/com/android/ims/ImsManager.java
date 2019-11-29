@@ -16,6 +16,8 @@
 
 package com.android.ims;
 
+import static com.android.internal.telephony.TelephonyIntents.EXTRAS_IS_CONFERENCE_URI;
+
 import android.annotation.Nullable;
 import android.annotation.UnsupportedAppUsage;
 import android.app.PendingIntent;
@@ -61,7 +63,6 @@ import com.android.ims.internal.IImsEcbm;
 import com.android.ims.internal.IImsMultiEndpoint;
 import com.android.ims.internal.IImsUt;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.telephony.TelephonyProperties;
 import com.android.internal.telephony.ITelephony;
 
 import java.io.FileDescriptor;
@@ -1941,7 +1942,7 @@ public class ImsManager implements IFeatureConnector {
         call.setListener(listener);
         ImsCallSession session = createCallSession(profile);
         boolean isConferenceUri = profile.getCallExtraBoolean(
-                TelephonyProperties.EXTRAS_IS_CONFERENCE_URI, false);
+                EXTRAS_IS_CONFERENCE_URI, false);
 
         if (!isConferenceUri && (callees != null) && (callees.length == 1)) {
             call.start(session, callees[0]);
