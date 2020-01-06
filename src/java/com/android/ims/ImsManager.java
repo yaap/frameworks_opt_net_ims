@@ -64,6 +64,7 @@ import com.android.ims.internal.IImsMultiEndpoint;
 import com.android.ims.internal.IImsUt;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.telephony.ITelephony;
+import com.android.internal.telephony.util.HandlerExecutor;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -231,7 +232,6 @@ public class ImsManager implements IFeatureConnector {
     private Context mContext;
     private CarrierConfigManager mConfigManager;
     private int mPhoneId;
-    private final boolean mConfigDynamicBind;
     private @Nullable MmTelFeatureConnection mMmTelFeatureConnection = null;
     private boolean mConfigUpdated = false;
 
@@ -1366,11 +1366,14 @@ public class ImsManager implements IFeatureConnector {
         boolean available = isVolteEnabledByPlatform();
         boolean enabled = isEnhanced4gLteModeSettingEnabledByUser();
         boolean isNonTty = isNonTtyOrTtyOnVolteEnabled();
-        boolean isFeatureOn = available && enabled && isNonTty;
+        boolean isProvisioned = isVolteProvisionedOnDevice();
+        boolean isFeatureOn = available && enabled && isNonTty && isProvisioned;
 
         log("updateVolteFeatureValue: available = " + available
                 + ", enabled = " + enabled
-                + ", nonTTY = " + isNonTty);
+                + ", nonTTY = " + isNonTty
+                + ", provisioned = " + isProvisioned
+                + ", isFeatureOn = " + isFeatureOn);
 
         if (isFeatureOn) {
             request.addCapabilitiesToEnableForTech(
@@ -1393,14 +1396,16 @@ public class ImsManager implements IFeatureConnector {
         boolean isDataEnabled = isDataEnabled();
         boolean ignoreDataEnabledChanged = getBooleanCarrierConfig(
                 CarrierConfigManager.KEY_IGNORE_DATA_ENABLED_CHANGED_FOR_VIDEO_CALLS);
-
-        boolean isFeatureOn = available && enabled && isNonTty
+        boolean isProvisioned = isVtProvisionedOnDevice();
+        boolean isFeatureOn = available && enabled && isNonTty && isProvisioned
                 && (ignoreDataEnabledChanged || isDataEnabled);
 
         log("updateVideoCallFeatureValue: available = " + available
                 + ", enabled = " + enabled
                 + ", nonTTY = " + isNonTty
-                + ", data enabled = " + isDataEnabled);
+                + ", data enabled = " + isDataEnabled
+                + ", provisioned = " + isProvisioned
+                + ", isFeatureOn = " + isFeatureOn);
 
         if (isFeatureOn) {
             request.addCapabilitiesToEnableForTech(
@@ -1421,15 +1426,18 @@ public class ImsManager implements IFeatureConnector {
         boolean isNetworkRoaming = tm.isNetworkRoaming();
         boolean available = isWfcEnabledByPlatform();
         boolean enabled = isWfcEnabledByUser();
+        boolean isProvisioned = isWfcProvisionedOnDevice();
         int mode = getWfcMode(isNetworkRoaming);
         boolean roaming = isWfcRoamingEnabledByUser();
-        boolean isFeatureOn = available && enabled;
+        boolean isFeatureOn = available && enabled && isProvisioned;
 
         log("updateWfcFeatureAndProvisionedValues: available = " + available
                 + ", enabled = " + enabled
                 + ", mode = " + mode
+                + ", isNetworkRoaming = " + isNetworkRoaming
+                + ", provisioned = " + isProvisioned
                 + ", roaming = " + roaming
-                + ", isNetworkRoaming = " + isNetworkRoaming);
+                + ", isFeatureOn = " + isFeatureOn);
 
         if (isFeatureOn) {
             request.addCapabilitiesToEnableForTech(
@@ -1495,19 +1503,9 @@ public class ImsManager implements IFeatureConnector {
     public ImsManager(Context context, int phoneId) {
         mContext = context;
         mPhoneId = phoneId;
-        mConfigDynamicBind = mContext.getResources().getBoolean(
-                com.android.internal.R.bool.config_dynamic_bind_ims);
         mConfigManager = (CarrierConfigManager) context.getSystemService(
                 Context.CARRIER_CONFIG_SERVICE);
         createImsService();
-    }
-
-    /**
-     * @return Whether or not ImsManager is configured to Dynamically bind or not to support legacy
-     * devices.
-     */
-    public boolean isDynamicBinding() {
-        return mConfigDynamicBind;
     }
 
     /*
