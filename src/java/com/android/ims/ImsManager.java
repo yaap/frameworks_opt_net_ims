@@ -19,7 +19,7 @@ package com.android.ims;
 import static com.android.internal.telephony.TelephonyIntents.EXTRAS_IS_CONFERENCE_URI;
 
 import android.annotation.Nullable;
-import android.annotation.UnsupportedAppUsage;
+import android.compat.annotation.UnsupportedAppUsage;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.pm.PackageManager;
