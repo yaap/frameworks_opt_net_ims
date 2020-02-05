@@ -19,8 +19,8 @@ package com.android.ims;
 import static com.android.internal.telephony.TelephonyIntents.EXTRAS_IS_CONFERENCE_URI;
 
 import android.annotation.Nullable;
-import android.compat.annotation.UnsupportedAppUsage;
 import android.app.PendingIntent;
+import android.compat.annotation.UnsupportedAppUsage;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Handler;
@@ -30,14 +30,14 @@ import android.os.Message;
 import android.os.Parcel;
 import android.os.PersistableBundle;
 import android.os.RemoteException;
-import android.os.ServiceManager;
 import android.os.SystemProperties;
 import android.provider.Settings;
 import android.telecom.TelecomManager;
 import android.telephony.AccessNetworkConstants;
 import android.telephony.CarrierConfigManager;
-import android.telephony.Rlog;
+import com.android.telephony.Rlog;
 import android.telephony.SubscriptionManager;
+import android.telephony.TelephonyFrameworkInitializer;
 import android.telephony.TelephonyManager;
 import android.telephony.ims.ImsCallProfile;
 import android.telephony.ims.ImsCallSession;
@@ -137,9 +137,12 @@ public class ImsManager implements IFeatureConnector {
      * Action to broadcast when ImsService registration fails.
      * Internal use only.
      * @hide
+     * @deprecated use {@link android.telephony.ims.ImsManager#ACTION_WFC_IMS_REGISTRATION_ERROR}
+     * instead.
      */
+    @Deprecated
     public static final String ACTION_IMS_REGISTRATION_ERROR =
-            "com.android.ims.REGISTRATION_ERROR";
+            android.telephony.ims.ImsManager.ACTION_WFC_IMS_REGISTRATION_ERROR;
 
     /**
      * Part of the ACTION_IMS_SERVICE_UP or _DOWN intents.
@@ -210,15 +213,17 @@ public class ImsManager implements IFeatureConnector {
     private static class ImsExecutorFactory implements ExecutorFactory {
 
         private final HandlerThread mThreadHandler;
+        private final Handler mHandler;
 
         public ImsExecutorFactory() {
             mThreadHandler = new HandlerThread("ImsHandlerThread");
             mThreadHandler.start();
+            mHandler = new Handler(mThreadHandler.getLooper());
         }
 
         @Override
         public void executeRunnable(Runnable runnable) {
-            mThreadHandler.getThreadHandler().post(runnable);
+            mHandler.post(runnable);
         }
     }
 
@@ -542,6 +547,18 @@ public class ImsManager implements IFeatureConnector {
         if (getBooleanCarrierConfig(
                 CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL)) {
             return isVolteProvisioned();
+        }
+
+        return true;
+    }
+
+    /**
+     * Indicates whether EAB is provisioned on this slot.
+     */
+    public boolean isEabProvisionedOnDevice() {
+        if (getBooleanCarrierConfig(
+                CarrierConfigManager.KEY_CARRIER_RCS_PROVISIONING_REQUIRED_BOOL)) {
+            return isEabProvisioned();
         }
 
         return true;
@@ -1466,7 +1483,10 @@ public class ImsManager implements IFeatureConnector {
         boolean isProvisioned = true;
         if (requiresProvisioning) {
             ITelephony telephony = ITelephony.Stub.asInterface(
-                    ServiceManager.getService(Context.TELEPHONY_SERVICE));
+                    TelephonyFrameworkInitializer
+                            .getTelephonyServiceManager()
+                            .getTelephonyServiceRegisterer()
+                            .get());
             // Only track UT over LTE, since we do not differentiate between UT over LTE and IWLAN
             // currently.
             try {
@@ -2639,13 +2659,25 @@ public class ImsManager implements IFeatureConnector {
                 provisionStatus);
     }
 
+    public void setEabProvisioned(boolean isProvisioned) {
+        int provisionStatus = isProvisioned ? ProvisioningManager.PROVISIONING_VALUE_ENABLED :
+                ProvisioningManager.PROVISIONING_VALUE_DISABLED;
+        setProvisionedBoolNoException(ImsConfig.ConfigConstants.EAB_SETTING_ENABLED,
+                provisionStatus);
+    }
+
     private boolean isDataEnabled() {
-        return new TelephonyManager(mContext, getSubId()).isDataCapable();
+        return new TelephonyManager(mContext, getSubId()).isDataConnectionEnabled();
     }
 
     private boolean isVolteProvisioned() {
         return getProvisionedBoolNoException(
                 ImsConfig.ConfigConstants.VLT_SETTING_ENABLED);
+    }
+
+    private boolean isEabProvisioned() {
+        return getProvisionedBoolNoException(
+                ImsConfig.ConfigConstants.EAB_SETTING_ENABLED);
     }
 
     private boolean isWfcProvisioned() {
