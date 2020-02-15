@@ -59,6 +59,7 @@ import com.android.ims.internal.IImsCallSession;
 import com.android.ims.internal.IImsEcbm;
 import com.android.ims.internal.IImsMultiEndpoint;
 import com.android.ims.internal.IImsUt;
+import com.android.ims.internal.TelephonyResourceUtils;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.telephony.ITelephony;
 import com.android.internal.telephony.util.HandlerExecutor;
@@ -518,8 +519,8 @@ public class ImsManager implements IFeatureConnector {
             return true;
         }
 
-        return mContext.getResources().getBoolean(
-                com.android.internal.R.bool.config_device_volte_available)
+        return TelephonyResourceUtils.getTelephonyResources(mContext).getBoolean(
+                com.android.telephony.resources.R.bool.config_device_volte_available)
                 && getBooleanCarrierConfig(CarrierConfigManager.KEY_CARRIER_VOLTE_AVAILABLE_BOOL)
                 && isGbaValid();
     }
@@ -668,10 +669,10 @@ public class ImsManager implements IFeatureConnector {
             return true;
         }
 
-        return mContext.getResources().getBoolean(
-                com.android.internal.R.bool.config_device_vt_available) &&
-                getBooleanCarrierConfig(CarrierConfigManager.KEY_CARRIER_VT_AVAILABLE_BOOL) &&
-                isGbaValid();
+        return TelephonyResourceUtils.getTelephonyResources(mContext).getBoolean(
+                com.android.telephony.resources.R.bool.config_device_vt_available)
+                && getBooleanCarrierConfig(CarrierConfigManager.KEY_CARRIER_VT_AVAILABLE_BOOL)
+                && isGbaValid();
     }
 
     /**
@@ -1188,11 +1189,10 @@ public class ImsManager implements IFeatureConnector {
             return true;
         }
 
-        return mContext.getResources().getBoolean(
-                com.android.internal.R.bool.config_device_wfc_ims_available) &&
-                getBooleanCarrierConfig(
-                        CarrierConfigManager.KEY_CARRIER_WFC_IMS_AVAILABLE_BOOL) &&
-                isGbaValid();
+        return TelephonyResourceUtils.getTelephonyResources(mContext).getBoolean(
+                com.android.telephony.resources.R.bool.config_device_wfc_ims_available)
+                && getBooleanCarrierConfig(CarrierConfigManager.KEY_CARRIER_WFC_IMS_AVAILABLE_BOOL)
+                && isGbaValid();
     }
 
     public boolean isSuppServicesOverUtEnabledByPlatform() {
@@ -1560,10 +1560,10 @@ public class ImsManager implements IFeatureConnector {
     @Override
     @VisibleForTesting
     public void addNotifyStatusChangedCallbackIfAvailable(FeatureConnection.IFeatureUpdate c)
-            throws ImsException {
+            throws android.telephony.ims.ImsException {
         if (!mMmTelFeatureConnection.isBinderAlive()) {
-            throw new ImsException("Binder is not active!",
-                    ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
+            throw new android.telephony.ims.ImsException("Can not connect to ImsService",
+                    android.telephony.ims.ImsException.CODE_ERROR_SERVICE_UNAVAILABLE);
         }
         if (c != null) {
             mStatusCallbacks.add(c);
@@ -1892,7 +1892,7 @@ public class ImsManager implements IFeatureConnector {
                         ImsReasonInfo.CODE_UT_NOT_SUPPORTED);
             }
 
-            mUt = new ImsUt(iUt);
+            mUt = new ImsUt(mContext, iUt);
         } catch (RemoteException e) {
             throw new ImsException("getSupplementaryServiceConfiguration()", e,
                     ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
@@ -2280,10 +2280,7 @@ public class ImsManager implements IFeatureConnector {
     }
 
     /**
-     * Binds the IMS service to make/receive the call. Supports two methods of exposing an
-     * ImsService:
-     * 1) com.android.ims.ImsService implementation in ServiceManager (deprecated).
-     * 2) android.telephony.ims.ImsService implementation through ImsResolver.
+     * Creates a connection to the ImsService associated with this slot.
      */
     private void createImsService() {
         mMmTelFeatureConnection = MmTelFeatureConnection.create(mContext, mPhoneId);
