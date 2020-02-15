@@ -26,7 +26,6 @@ import android.telecom.Call;
 import com.android.ims.internal.ConferenceParticipant;
 import android.telecom.Connection;
 import android.telephony.CallQuality;
-import com.android.telephony.Rlog;
 import android.telephony.ServiceState;
 import android.telephony.TelephonyManager;
 import android.telephony.ims.ImsCallProfile;
@@ -41,6 +40,7 @@ import android.util.Log;
 import com.android.ims.internal.ICall;
 import com.android.ims.internal.ImsStreamMediaSession;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.telephony.Rlog;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -2427,6 +2427,12 @@ public class ImsCall implements ICall {
             }
             if (mIsConferenceHost) {
                 // If the dial request was a group calling one, this call would have
+                // been marked the conference host as part of the request.
+                mIsConferenceHost = false;
+            }
+
+            if (mIsConferenceHost) {
+                // If the dial request was a adhoc conf calling one, this call would have
                 // been marked the conference host as part of the request.
                 mIsConferenceHost = false;
             }

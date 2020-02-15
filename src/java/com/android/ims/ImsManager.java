@@ -35,7 +35,6 @@ import android.provider.Settings;
 import android.telecom.TelecomManager;
 import android.telephony.AccessNetworkConstants;
 import android.telephony.CarrierConfigManager;
-import com.android.telephony.Rlog;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyFrameworkInitializer;
 import android.telephony.TelephonyManager;
@@ -65,6 +64,7 @@ import com.android.ims.internal.IImsUt;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.telephony.ITelephony;
 import com.android.internal.telephony.util.HandlerExecutor;
+import com.android.telephony.Rlog;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -194,6 +194,8 @@ public class ImsManager implements IFeatureConnector {
      * @hide
      */
     public static final String EXTRA_IS_UNKNOWN_CALL = "android:isUnknown";
+
+    private static final int SUBINFO_PROPERTY_FALSE = 0;
 
     private static final int SYSTEM_PROPERTY_NOT_SET = -1;
 
@@ -1962,7 +1964,7 @@ public class ImsManager implements IFeatureConnector {
         boolean isConferenceUri = profile.getCallExtraBoolean(
                 EXTRAS_IS_CONFERENCE_URI, false);
 
-        if (!isConferenceUri && (callees != null) && (callees.length == 1)) {
+        if (!isConferenceUri && (callees != null) && (callees.length == 1) && !(session.isMultiparty())) {
             call.start(session, callees[0]);
         } else {
             call.start(session, callees);
@@ -2630,6 +2632,11 @@ public class ImsManager implements IFeatureConnector {
             SubscriptionManager.setSubscriptionProperty(subId,
                     SubscriptionManager.VT_IMS_ENABLED,
                     Integer.toString(SUB_PROPERTY_NOT_INITIALIZED));
+
+            // Set RCS UCE to default
+            SubscriptionManager.setSubscriptionProperty(subId,
+                    SubscriptionManager.IMS_RCS_UCE_ENABLED, Integer.toString(
+                            SUBINFO_PROPERTY_FALSE));
         } else {
             loge("factoryReset: invalid sub id, can not reset siminfo db settings; subId=" + subId);
         }
@@ -2718,7 +2725,8 @@ public class ImsManager implements IFeatureConnector {
 
         pw.println("  isWfcEnabledByPlatform = " + isWfcEnabledByPlatform());
         pw.println("  isWfcEnabledByUser = " + isWfcEnabledByUser());
-        pw.println("  getWfcMode = " + getWfcMode());
+        pw.println("  getWfcMode(non-roaming) = " + getWfcMode(false));
+        pw.println("  getWfcMode(roaming) = " + getWfcMode(true));
         pw.println("  isWfcRoamingEnabledByUser = " + isWfcRoamingEnabledByUser());
 
         pw.println("  isVtProvisionedOnDevice = " + isVtProvisionedOnDevice());
