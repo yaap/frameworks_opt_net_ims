@@ -23,6 +23,7 @@ import android.os.Bundle;
 import android.os.Message;
 import android.os.Parcel;
 import android.telecom.Call;
+import com.android.ims.internal.ConferenceParticipant;
 import android.telecom.Connection;
 import android.telephony.CallQuality;
 import android.telephony.ServiceState;
@@ -36,10 +37,8 @@ import android.telephony.ims.ImsSuppServiceNotification;
 import android.text.TextUtils;
 import android.util.Log;
 
-import com.android.ims.internal.ConferenceParticipant;
 import com.android.ims.internal.ICall;
 import com.android.ims.internal.ImsStreamMediaSession;
-import com.android.ims.internal.TelephonyResourceUtils;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.telephony.Rlog;
 
@@ -47,6 +46,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -485,6 +485,17 @@ public class ImsCall implements ICall {
          * @param profile updated ImsStreamMediaProfile profile.
          */
         public void onRttAudioIndicatorChanged(ImsCall imsCall, ImsStreamMediaProfile profile) {
+        }
+
+        /**
+         * Notifies the result of transfer request.
+         *
+         * @param imsCall ImsCall object
+         */
+        public void onCallSessionTransferred(ImsCall imsCall) {
+        }
+
+        public void onCallSessionTransferFailed(ImsCall imsCall, ImsReasonInfo reasonInfo) {
         }
 
         /**
@@ -1254,6 +1265,56 @@ public class ImsCall implements ICall {
         }
     }
 
+    /**
+     * Transfers a call.
+     *
+     * @param number number to be transferred to.
+     * @param isConfirmationRequired indicates blind or assured transfer.
+     * @throws ImsException if the IMS service fails to transfer the call.
+     */
+    public void transfer(String number, boolean isConfirmationRequired) throws ImsException {
+        logi("transfer :: session=" + mSession + ", number=" + Rlog.pii(TAG, number) +
+                ", isConfirmationRequired=" + isConfirmationRequired);
+
+        synchronized(mLockObj) {
+            if (mSession == null) {
+                throw new ImsException("No call to transfer",
+                        ImsReasonInfo.CODE_LOCAL_CALL_TERMINATED);
+            }
+
+            try {
+                mSession.transfer(number, isConfirmationRequired);
+            } catch (Throwable t) {
+                loge("transfer :: ", t);
+                throw new ImsException("transfer()", t, 0);
+            }
+        }
+    }
+
+    /**
+     * Transfers a call to another ongoing call.
+     *
+     * @param transferToImsCall the other ongoing call to which this call will be transferred.
+     * @throws ImsException if the IMS service fails to transfer the call.
+     */
+    public void consultativeTransfer(ImsCall transferToImsCall) throws ImsException {
+        logi("consultativeTransfer :: session=" + mSession + ", other call=" + transferToImsCall);
+
+        synchronized(mLockObj) {
+            if (mSession == null) {
+                throw new ImsException("No call to transfer",
+                        ImsReasonInfo.CODE_LOCAL_CALL_TERMINATED);
+            }
+
+            try {
+                mSession.transfer(transferToImsCall.getSession());
+            } catch (Throwable t) {
+                loge("consultativeTransfer :: ", t);
+                throw new ImsException("consultativeTransfer()", t, 0);
+            }
+        }
+    }
+
     public void terminate(int reason, int overrideReason) {
         logi("terminate :: reason=" + reason + " ; overrideReason=" + overrideReason);
         mOverrideReason = overrideReason;
@@ -1421,8 +1482,8 @@ public class ImsCall implements ICall {
 
             // if skipHoldBeforeMerge = true, IMS service implementation will
             // merge without explicitly holding the call.
-            if (mHold || (TelephonyResourceUtils.getTelephonyResources(mContext).getBoolean(
-                    com.android.telephony.resources.R.bool.skipHoldBeforeMerge))) {
+            if (mHold || (mContext.getResources().getBoolean(
+                    com.android.internal.R.bool.skipHoldBeforeMerge))) {
 
                 if (mMergePeer != null && !mMergePeer.isMultiparty() && !isMultiparty()) {
                     // We only set UPDATE_MERGE when we are adding the first
@@ -3235,6 +3296,40 @@ public class ImsCall implements ICall {
                     listener.onRttAudioIndicatorChanged(ImsCall.this, profile);
                 } catch (Throwable t) {
                     loge("callSessionRttAudioIndicatorChanged:: ", t);
+                }
+            }
+        }
+
+        @Override
+        public void callSessionTransferred(ImsCallSession session) {
+            ImsCall.Listener listener;
+
+            synchronized(ImsCall.this) {
+                listener = mListener;
+            }
+
+            if (listener != null) {
+                try {
+                    listener.onCallSessionTransferred(ImsCall.this);
+                } catch (Throwable t) {
+                    loge("callSessionTransferred:: ", t);
+                }
+            }
+        }
+
+        @Override
+        public void callSessionTransferFailed(ImsCallSession session, ImsReasonInfo reasonInfo) {
+            ImsCall.Listener listener;
+
+            synchronized(ImsCall.this) {
+                listener = mListener;
+            }
+
+            if (listener != null) {
+                try {
+                    listener.onCallSessionTransferFailed(ImsCall.this, reasonInfo);
+                } catch (Throwable t) {
+                    loge("callSessionTransferFailed:: ", t);
                 }
             }
         }
