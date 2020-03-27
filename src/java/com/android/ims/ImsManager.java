@@ -16,8 +16,6 @@
 
 package com.android.ims;
 
-import static com.android.internal.telephony.TelephonyIntents.EXTRAS_IS_CONFERENCE_URI;
-
 import android.annotation.Nullable;
 import android.app.PendingIntent;
 import android.compat.annotation.UnsupportedAppUsage;
@@ -1961,10 +1959,8 @@ public class ImsManager implements IFeatureConnector {
 
         call.setListener(listener);
         ImsCallSession session = createCallSession(profile);
-        boolean isConferenceUri = profile.getCallExtraBoolean(
-                EXTRAS_IS_CONFERENCE_URI, false);
 
-        if (!isConferenceUri && (callees != null) && (callees.length == 1) && !(session.isMultiparty())) {
+        if ((callees != null) && (callees.length == 1) && !(session.isMultiparty())) {
             call.start(session, callees[0]);
         } else {
             call.start(session, callees);
