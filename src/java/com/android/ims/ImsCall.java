@@ -2026,6 +2026,10 @@ public class ImsCall implements ICall {
             }
         }
 
+        //Update CallProfile received as part of call end which will update the
+        //call extras if any added as part of call end indication.
+        updateCallProfile();
+
         if (listener != null) {
             try {
                 listener.onCallTerminated(ImsCall.this, reasonInfo);
