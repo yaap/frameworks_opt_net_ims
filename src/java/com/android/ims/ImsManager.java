@@ -16,8 +16,6 @@
 
 package com.android.ims;
 
-import static com.android.internal.telephony.TelephonyIntents.EXTRAS_IS_CONFERENCE_URI;
-
 import android.annotation.Nullable;
 import android.app.PendingIntent;
 import android.compat.annotation.UnsupportedAppUsage;
@@ -1961,10 +1959,8 @@ public class ImsManager implements IFeatureConnector {
 
         call.setListener(listener);
         ImsCallSession session = createCallSession(profile);
-        boolean isConferenceUri = profile.getCallExtraBoolean(
-                EXTRAS_IS_CONFERENCE_URI, false);
 
-        if (!isConferenceUri && (callees != null) && (callees.length == 1) && !(session.isMultiparty())) {
+        if ((callees != null) && (callees.length == 1) && !(session.isMultiparty())) {
             call.start(session, callees[0]);
         } else {
             call.start(session, callees);
@@ -2067,11 +2063,17 @@ public class ImsManager implements IFeatureConnector {
                 getBooleanCarrierConfig(CarrierConfigManager.KEY_RTT_SUPPORTED_BOOL)
                 || !isActiveSubscriptionPresent;
 
+        int defaultRttMode =
+                getIntCarrierConfig(CarrierConfigManager.KEY_DEFAULT_RTT_MODE_INT);
+        int rttMode = Settings.Secure.getInt(mContext.getContentResolver(),
+                Settings.Secure.RTT_CALLING_MODE + convertRttPhoneId(mPhoneId), defaultRttMode);
+        logi("defaultRttMode = " + defaultRttMode + " rttMode = " + rttMode);
         boolean isRttAlwaysOnCarrierConfig = getBooleanCarrierConfig(
                 CarrierConfigManager.KEY_IGNORE_RTT_MODE_SETTING_BOOL);
-        if (isRttAlwaysOnCarrierConfig) {
+        if (isRttAlwaysOnCarrierConfig && rttMode == defaultRttMode) {
             Settings.Secure.putInt(mContext.getContentResolver(),
-                    Settings.Secure.RTT_CALLING_MODE + convertRttPhoneId(mPhoneId), 1);
+                    Settings.Secure.RTT_CALLING_MODE + convertRttPhoneId(mPhoneId),
+                    defaultRttMode);
         }
         boolean isRttUiSettingEnabled = Settings.Secure.getInt(mContext.getContentResolver(),
                 Settings.Secure.RTT_CALLING_MODE + convertRttPhoneId(mPhoneId), 0) != 0;
@@ -2145,6 +2147,26 @@ public class ImsManager implements IFeatureConnector {
             logw("queryMmTelCapability: interrupted while waiting for response");
         }
         return false;
+    }
+
+    public boolean queryMmTelCapabilityStatus(
+            @MmTelFeature.MmTelCapabilities.MmTelCapability int capability,
+            @ImsRegistrationImplBase.ImsRegistrationTech int radioTech) throws ImsException {
+        checkAndThrowExceptionIfServiceUnavailable();
+
+        if (getRegistrationTech() != radioTech)
+            return false;
+
+        try {
+
+            MmTelFeature.MmTelCapabilities capabilities =
+                    mMmTelFeatureConnection.queryCapabilityStatus();
+
+            return capabilities.isCapable(capability);
+        } catch (RemoteException e) {
+            throw new ImsException("queryMmTelCapabilityStatus()", e,
+                    ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
+        }
     }
 
     public void setRttEnabled(boolean enabled) {
