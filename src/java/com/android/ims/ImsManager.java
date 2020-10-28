@@ -1324,6 +1324,12 @@ public class ImsManager implements IFeatureConnector {
             }
         }
 
+        int subId = getSubId();
+        if (!SubscriptionManager.from(mContext).isActiveSubId(subId)) {
+            log("updateImsServiceConfigForSlot: subId not active: " + subId);
+            return;
+        }
+
         if (!mConfigUpdated || force) {
             try {
                 PersistableBundle imsCarrierConfigs =
@@ -1453,6 +1459,7 @@ public class ImsManager implements IFeatureConnector {
         log("updateWfcFeatureAndProvisionedValues: available = " + available
                 + ", enabled = " + enabled
                 + ", mode = " + mode
+                + ", isNetworkRoaming = " + isNetworkRoaming
                 + ", provisioned = " + isProvisioned
                 + ", roaming = " + roaming
                 + ", isFeatureOn = " + isFeatureOn);
@@ -2065,10 +2072,20 @@ public class ImsManager implements IFeatureConnector {
                 getBooleanCarrierConfig(CarrierConfigManager.KEY_RTT_SUPPORTED_BOOL)
                 || !isActiveSubscriptionPresent;
 
-        boolean isRttUiSettingEnabled = Settings.Secure.getInt(mContext.getContentResolver(),
-                Settings.Secure.RTT_CALLING_MODE, 0) != 0;
+        int defaultRttMode =
+                getIntCarrierConfig(CarrierConfigManager.KEY_DEFAULT_RTT_MODE_INT);
+        int rttMode = Settings.Secure.getInt(mContext.getContentResolver(),
+                Settings.Secure.RTT_CALLING_MODE + convertRttPhoneId(mPhoneId), defaultRttMode);
+        logi("defaultRttMode = " + defaultRttMode + " rttMode = " + rttMode);
         boolean isRttAlwaysOnCarrierConfig = getBooleanCarrierConfig(
                 CarrierConfigManager.KEY_IGNORE_RTT_MODE_SETTING_BOOL);
+        if (isRttAlwaysOnCarrierConfig && rttMode == defaultRttMode) {
+            Settings.Secure.putInt(mContext.getContentResolver(),
+                    Settings.Secure.RTT_CALLING_MODE + convertRttPhoneId(mPhoneId),
+                    defaultRttMode);
+        }
+        boolean isRttUiSettingEnabled = Settings.Secure.getInt(mContext.getContentResolver(),
+                Settings.Secure.RTT_CALLING_MODE + convertRttPhoneId(mPhoneId), 0) != 0;
 
         boolean shouldImsRttBeOn = isRttUiSettingEnabled || isRttAlwaysOnCarrierConfig;
         logi("update RTT: settings value: " + isRttUiSettingEnabled + " always-on carrierconfig: "
@@ -2095,6 +2112,10 @@ public class ImsManager implements IFeatureConnector {
                 loge("Unable to set RTT value enabled to " + enabled + ": " + e);
             }
         });
+    }
+
+    private static String convertRttPhoneId(int phoneId) {
+        return phoneId != 0 ? Integer.toString(phoneId) : "";
     }
 
     public boolean queryMmTelCapability(
