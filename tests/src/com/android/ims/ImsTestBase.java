@@ -21,6 +21,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
+import android.telephony.satellite.SatelliteManager;
 
 import org.mockito.MockitoAnnotations;
 
