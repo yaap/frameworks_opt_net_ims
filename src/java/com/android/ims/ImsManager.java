@@ -673,7 +673,7 @@ public class ImsManager implements FeatureUpdates {
                 boolean isNonTty = isNonTtyOrTtyOnVolteEnabled();
                 // This affects voice and video enablement
                 updateVoiceCellFeatureValue(request, isNonTty);
-                updateVideoCallFeatureValue(request, isNonTty);
+                updateVideoCallOverCellularFeatureValue(request, isNonTty);
                 changeMmTelCapability(request);
                 // Ensure IMS is on if this setting is enabled.
                 turnOnIms();
@@ -961,6 +961,17 @@ public class ImsManager implements FeatureUpdates {
     }
 
     /**
+     * Indicates whether VT over WiFi is provisioned on this slot.
+     */
+    public boolean isVtOverWifiProvisionedOnDevice() {
+        if (isMmTelProvisioningRequired(CAPABILITY_TYPE_VIDEO, REGISTRATION_TECH_IWLAN)) {
+            return getImsProvisionedBoolNoException(CAPABILITY_TYPE_VIDEO, REGISTRATION_TECH_IWLAN);
+        }
+
+        return true;
+    }
+
+    /**
      * Returns a platform configuration for VT which may override the user setting.
      *
      * Note: VT presumes that VoLTE is enabled (these are configuration settings
@@ -1098,7 +1109,7 @@ public class ImsManager implements FeatureUpdates {
         try {
             if (enabled) {
                 CapabilityChangeRequest request = new CapabilityChangeRequest();
-                updateVideoCallFeatureValue(request, isNonTtyOrTtyOnVolteEnabled());
+                updateVideoCallOverCellularFeatureValue(request, isNonTtyOrTtyOnVolteEnabled());
                 changeMmTelCapability(request);
                 // ensure IMS is enabled.
                 turnOnIms();
@@ -1202,6 +1213,9 @@ public class ImsManager implements FeatureUpdates {
                 boolean isNonTtyWifi = isNonTtyOrTtyOnVoWifiEnabled();
                 CapabilityChangeRequest request = new CapabilityChangeRequest();
                 updateVoiceWifiFeatureAndProvisionedValues(request, isNonTtyWifi);
+                if (Flags.separateVtActivationForWifiAndCellular()) {
+                    updateVideoOverWifiFeatureAndProvisionedValues(request, isNonTtyWifi);
+                }
                 changeMmTelCapability(request);
                 // Ensure IMS is on if this setting is updated.
                 turnOnIms();
@@ -1748,7 +1762,10 @@ public class ImsManager implements FeatureUpdates {
         updateVoiceCellFeatureValue(request, isNonTty);
         updateVoiceWifiFeatureAndProvisionedValues(request, isNonTtyWifi);
         updateCrossSimFeatureAndProvisionedValues(request);
-        updateVideoCallFeatureValue(request, isNonTty);
+        updateVideoCallOverCellularFeatureValue(request, isNonTty);
+        if (Flags.separateVtActivationForWifiAndCellular()) {
+            updateVideoOverWifiFeatureAndProvisionedValues(request, isNonTtyWifi);
+        }
         if (com.android.server.telecom.flags.Flags.businessCallComposer()) {
             updateCallComposerFeatureValue(request);
         } else {
@@ -1851,7 +1868,9 @@ public class ImsManager implements FeatureUpdates {
     /**
      * Update video call configuration
      */
-    private void updateVideoCallFeatureValue(CapabilityChangeRequest request, boolean isNonTty) {
+    private void updateVideoCallOverCellularFeatureValue(CapabilityChangeRequest request,
+            boolean isNonTty)
+    {
         boolean available = isVtEnabledByPlatform();
         boolean vtEnabled = isVtEnabledByUser();
         boolean advancedEnabled = isEnhanced4gLteModeSettingEnabledByUser();
@@ -1865,7 +1884,7 @@ public class ImsManager implements FeatureUpdates {
                 && advancedEnabled && (ignoreDataEnabledChanged || isDataEnabled);
         boolean nrAvailable = isImsOverNrEnabledByPlatform();
 
-        log("updateVideoCallFeatureValue: available = " + available
+        log("updateVideoCallOverCellularFeatureValue: available = " + available
                 + ", vtenabled = " + vtEnabled
                 + ", advancedCallEnabled = " + advancedEnabled
                 + ", nonTTY = " + isNonTty
@@ -1894,6 +1913,32 @@ public class ImsManager implements FeatureUpdates {
             request.addCapabilitiesToDisableForTech(
                     MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO,
                     ImsRegistrationImplBase.REGISTRATION_TECH_NR);
+        }
+    }
+
+    /**
+     * Update Video WFC configuration
+     */
+    private void updateVideoOverWifiFeatureAndProvisionedValues(CapabilityChangeRequest request,
+            boolean isNonTtyOverWifi) {
+        boolean isWfcEnabled = isWfcEnabledByPlatform() && isWfcEnabledByUser()
+                && isWfcProvisionedOnDevice();
+        boolean isVtEnabled = isVtEnabledByPlatform() && isVtEnabledByUser()
+                && isVtOverWifiProvisionedOnDevice();
+        boolean isFeatureOn = isWfcEnabled && isVtEnabled && isNonTtyOverWifi;
+
+        log("updateVideoOverWifiFeatureAndProvisionedValues: isWfcEnabled=" + isWfcEnabled
+                + ", isVtEnabled=" + isVtEnabled + ", isNonTtyWifi=" + isNonTtyOverWifi
+                + ", isFeatureOn=" + isFeatureOn);
+
+        if (isFeatureOn) {
+            request.addCapabilitiesToEnableForTech(
+                    MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO,
+                    ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN);
+        } else {
+            request.addCapabilitiesToDisableForTech(
+                    MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO,
+                    ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN);
         }
     }
 
@@ -2837,7 +2882,7 @@ public class ImsManager implements FeatureUpdates {
 
         CapabilityChangeRequest request = new CapabilityChangeRequest();
         updateVoiceCellFeatureValue(request, isNonTtyOrTtyOnVolteEnabled);
-        updateVideoCallFeatureValue(request, isNonTtyOrTtyOnVolteEnabled);
+        updateVideoCallOverCellularFeatureValue(request, isNonTtyOrTtyOnVolteEnabled);
         updateVoiceWifiFeatureAndProvisionedValues(request, isNonTtyOrTtyOnWifiEnabled);
         // update MMTEL caps for the new configuration.
         changeMmTelCapability(request);
