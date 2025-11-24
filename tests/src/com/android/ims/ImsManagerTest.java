@@ -37,6 +37,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.os.IBinder;
@@ -46,6 +47,7 @@ import android.platform.test.flag.junit.SetFlagsRule;
 import android.telephony.BinderCacheManager;
 import android.telephony.CarrierConfigManager;
 import android.telephony.NetworkRegistrationInfo;
+import android.telephony.Rlog;
 import android.telephony.ServiceState;
 import android.telephony.SubscriptionManager;
 import android.telephony.ims.ImsMmTelManager;
@@ -65,7 +67,6 @@ import androidx.test.filters.SmallTest;
 import com.android.ims.internal.IImsCallSession;
 import com.android.internal.os.SomeArgs;
 import com.android.internal.telephony.ITelephony;
-import com.android.internal.telephony.flags.Flags;
 
 import org.junit.After;
 import org.junit.Before;
@@ -931,16 +932,13 @@ public class ImsManagerTest extends ImsTestBase {
     }
 
     @Test @SmallTest
-    public void getWfcMode_overrideWfcRoamingModeWhileUsingNTN() {
+    public void getWfcMode_overrideWfcRoamingModeWhileUsingNTN() throws Exception {
+        Resources res = mContext.getResources();
+        doReturn(true).when(res).getBoolean(
+                com.android.internal.R.bool.config_override_wfc_roaming_mode_while_using_ntn);
+        TestImsManager imsManager = getImsManagerAndInitProvisionedValues();
         // Phone connected to non-terrestrial network
-        NetworkRegistrationInfo nri = new NetworkRegistrationInfo.Builder()
-                .setIsNonTerrestrialNetwork(true)
-                .build();
-        ServiceState ss = new ServiceState();
-        ss.addNetworkRegistrationInfo(nri);
-        doReturn(ss).when(mTelephonyManager).getServiceState();
-
-        ImsManager imsManager = getImsManagerAndInitProvisionedValues();
+        imsManager.setInCarrierRoamingNtnMode(true);
 
         mBundle.putBoolean(
                 CarrierConfigManager.KEY_USE_WFC_HOME_NETWORK_MODE_IN_ROAMING_NETWORK_BOOL, false);
@@ -1077,7 +1075,7 @@ public class ImsManagerTest extends ImsTestBase {
         }
     }
 
-    private ImsManager getImsManagerAndInitProvisionedValues() {
+    private TestImsManager getImsManagerAndInitProvisionedValues() {
         when(mImsConfigImplBaseMock.getConfigInt(anyInt()))
                 .thenAnswer(invocation ->  {
                     return getProvisionedInt((Integer) (invocation.getArguments()[0]));
@@ -1131,7 +1129,7 @@ public class ImsManagerTest extends ImsTestBase {
                     });
         } catch (RemoteException e) {}
 
-        ImsManager mgr = new ImsManager(mContext, mPhoneId,
+        TestImsManager mgr = new TestImsManager(mContext, mPhoneId,
                 (context, phoneId, subId, feature, c, r, s) -> mMmTelFeatureConnection,
                 mSubscriptionManagerProxy, mSettingsProxy, mBinderCacheManager);
         ImsFeatureContainer c = new ImsFeatureContainer(mMmTelFeature, mImsConfig, mImsReg,
@@ -1188,5 +1186,24 @@ public class ImsManagerTest extends ImsTestBase {
         }
 
         return key;
+    }
+
+    public class TestImsManager extends ImsManager {
+        private boolean mIsInCarrierRoamingNtnMode;
+
+        public TestImsManager(Context context, int phoneId, MmTelFeatureConnectionFactory factory,
+                SubscriptionManagerProxy subManagerProxy, SettingsProxy settingsProxy,
+                BinderCacheManager binderCacheManager) {
+            super(context, phoneId, factory, subManagerProxy, settingsProxy, binderCacheManager);
+        }
+
+        @Override
+        protected boolean isInCarrierRoamingNtnMode() {
+            return mIsInCarrierRoamingNtnMode;
+        }
+
+        private void setInCarrierRoamingNtnMode(boolean isInCarrierRoamingNtnMode) {
+            mIsInCarrierRoamingNtnMode = isInCarrierRoamingNtnMode;
+        }
     }
 }

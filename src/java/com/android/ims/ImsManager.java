@@ -30,6 +30,7 @@ import android.compat.annotation.UnsupportedAppUsage;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.content.res.Resources;
 import android.os.Build;
 import android.os.Message;
 import android.os.PersistableBundle;
@@ -41,7 +42,6 @@ import android.telecom.TelecomManager;
 import android.telephony.AccessNetworkConstants;
 import android.telephony.BinderCacheManager;
 import android.telephony.CarrierConfigManager;
-import android.telephony.ServiceState;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyFrameworkInitializer;
 import android.telephony.TelephonyManager;
@@ -70,6 +70,7 @@ import android.telephony.ims.feature.ImsFeature;
 import android.telephony.ims.feature.MmTelFeature;
 import android.telephony.ims.stub.ImsCallSessionImplBase;
 import android.telephony.ims.stub.ImsRegistrationImplBase;
+import android.telephony.satellite.SatelliteManager;
 import android.util.SparseArray;
 
 import com.android.ims.internal.IImsCallSession;
@@ -1392,13 +1393,13 @@ public class ImsManager implements FeatureUpdates {
             }
             if (DBG) log("getWfcMode - setting=" + setting);
         } else {
-            if (getBooleanCarrierConfig(
-                    CarrierConfigManager.KEY_USE_WFC_HOME_NETWORK_MODE_IN_ROAMING_NETWORK_BOOL)) {
-                setting = getWfcMode(false);
-            } else if (overrideWfcRoamingModeWhileUsingNTN()) {
+            if (shouldOverrideWfcRoamingModeWhileUsingNTN()) {
                 if (DBG) log("getWfcMode (roaming) "
                         + "- override Wfc roaming mode to WIFI_PREFERRED");
                 setting = ImsConfig.WfcModeFeatureValueConstants.WIFI_PREFERRED;
+            } else if (getBooleanCarrierConfig(
+                    CarrierConfigManager.KEY_USE_WFC_HOME_NETWORK_MODE_IN_ROAMING_NETWORK_BOOL)) {
+                setting = getWfcMode(false);
             } else if (!getBooleanCarrierConfig(
                     CarrierConfigManager.KEY_EDITABLE_WFC_ROAMING_MODE_BOOL)) {
                 setting = getIntCarrierConfig(
@@ -1485,7 +1486,7 @@ public class ImsManager implements FeatureUpdates {
         return mSubscriptionManagerProxy.getSubscriptionId(mPhoneId);
     }
 
-    private void setWfcModeInternal(int wfcMode) {
+    public void setWfcModeInternal(int wfcMode) {
         final int value = wfcMode;
         getImsThreadExecutor().execute(() -> {
             try {
@@ -1518,6 +1519,12 @@ public class ImsManager implements FeatureUpdates {
      * queries CarrierConfig value as default.
      */
     public boolean isWfcRoamingEnabledByUser() {
+        if (isInCarrierRoamingNtnMode()) {
+            // NTN is a roaming network by default. If device is connected to NTN,
+            // then return user configuration of WFC setting for home network.
+            return isWfcEnabledByUser();
+        }
+
         int setting =  mSubscriptionManagerProxy.getIntegerSubscriptionProperty(
                 getSubId(), SubscriptionManager.WFC_IMS_ROAMING_ENABLED,
                 SUB_PROPERTY_NOT_INITIALIZED);
@@ -1552,7 +1559,7 @@ public class ImsManager implements FeatureUpdates {
         setWfcRoamingSettingInternal(enabled);
     }
 
-    private void setWfcRoamingSettingInternal(boolean enabled) {
+    public void setWfcRoamingSettingInternal(boolean enabled) {
         final int value = enabled
                 ? ProvisioningManager.PROVISIONING_VALUE_ENABLED
                 : ProvisioningManager.PROVISIONING_VALUE_DISABLED;
@@ -3743,22 +3750,45 @@ public class ImsManager implements FeatureUpdates {
      * {@link CarrierConfigManager#KEY_OVERRIDE_WFC_ROAMING_MODE_WHILE_USING_NTN_BOOL} is true,
      * {@code false} otherwise.
      */
-    private boolean overrideWfcRoamingModeWhileUsingNTN() {
-        if (mTelephonyManager == null) {
+    public boolean shouldOverrideWfcRoamingModeWhileUsingNTN() {
+        if (!getOverrideWfcRoamingModeWhileUsingNtnDeviceConfig()) {
+            log("shouldOverrideWfcRoamingModeWhileUsingNTN: do not override wfc roaming mode");
             return false;
         }
 
-        TelephonyManager tm = mTelephonyManager.createForSubscriptionId(getSubId());
-        ServiceState serviceState = tm.getServiceState();
-        if (serviceState == null) {
-            return false;
-        }
-
-        if (!serviceState.isUsingNonTerrestrialNetwork()) {
+        if (!isInCarrierRoamingNtnMode()) {
             return false;
         }
 
         return getBooleanCarrierConfig(
                 CarrierConfigManager.KEY_OVERRIDE_WFC_ROAMING_MODE_WHILE_USING_NTN_BOOL);
+    }
+
+    @VisibleForTesting(visibility = VisibleForTesting.Visibility.PRIVATE)
+    protected boolean isInCarrierRoamingNtnMode() {
+        SatelliteManager satelliteManager = mContext.getSystemService(SatelliteManager.class);
+        if (satelliteManager == null) {
+            return false;
+        }
+
+        try {
+            return satelliteManager.isInCarrierRoamingNtnMode(
+                    SubscriptionManager.getSubscriptionId(mPhoneId));
+        } catch (IllegalStateException ex) {
+            loge("isInCarrierRoamingNtnMode: ex=" + ex);
+        }
+
+        return false;
+    }
+
+    private boolean getOverrideWfcRoamingModeWhileUsingNtnDeviceConfig() {
+        boolean overrideWfcRoamingMode = false;
+        try {
+            overrideWfcRoamingMode = mContext.getResources().getBoolean(
+                    com.android.internal.R.bool.config_override_wfc_roaming_mode_while_using_ntn);
+        } catch (Resources.NotFoundException ex) {
+            loge("getOverrideWfcRoamingModeWhileUsingNtnDeviceConfig: ex=" + ex);
+        }
+        return overrideWfcRoamingMode;
     }
 }
