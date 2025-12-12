@@ -39,7 +39,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.os.IBinder;
@@ -950,13 +949,16 @@ public class ImsManagerTest extends ImsTestBase {
     }
 
     @Test @SmallTest
-    public void getWfcMode_overrideWfcRoamingModeWhileUsingNTN() throws Exception {
-        Resources res = mContext.getResources();
-        doReturn(true).when(res).getBoolean(
-                com.android.internal.R.bool.config_override_wfc_roaming_mode_while_using_ntn);
-        TestImsManager imsManager = getImsManagerAndInitProvisionedValues();
+    public void getWfcMode_overrideWfcRoamingModeWhileUsingNTN() {
         // Phone connected to non-terrestrial network
-        imsManager.setInCarrierRoamingNtnMode(true);
+        NetworkRegistrationInfo nri = new NetworkRegistrationInfo.Builder()
+                .setIsNonTerrestrialNetwork(true)
+                .build();
+        ServiceState ss = new ServiceState();
+        ss.addNetworkRegistrationInfo(nri);
+        doReturn(ss).when(mTelephonyManager).getServiceState();
+
+        ImsManager imsManager = getImsManagerAndInitProvisionedValues();
 
         mBundle.putBoolean(
                 CarrierConfigManager.KEY_USE_WFC_HOME_NETWORK_MODE_IN_ROAMING_NETWORK_BOOL, false);
@@ -1095,7 +1097,7 @@ public class ImsManagerTest extends ImsTestBase {
 
     /**
      * Tests that when all related features (VoWiFi, VT) are enabled and
-     * provisioned, the Video over Wi-Fi capability is correctly enabled.
+     * provisioned, the Video over Wi--Fi capability is correctly enabled.
      *
      * <p><b>Note:</b> This test assumes that the production code in ImsManager has been
      * updated to include a call to the new {@code updateVideoWifiFeatureAndProvisionedValues}
@@ -1175,7 +1177,7 @@ public class ImsManagerTest extends ImsTestBase {
         assertTrue("Video over WiFi capability should be disabled", isVideoOverWifiDisabled);
     }
 
-    private TestImsManager getImsManagerAndInitProvisionedValues() {
+    private ImsManager getImsManagerAndInitProvisionedValues() {
         when(mImsConfigImplBaseMock.getConfigInt(anyInt()))
                 .thenAnswer(invocation ->  {
                     return getProvisionedInt((Integer) (invocation.getArguments()[0]));
@@ -1229,7 +1231,7 @@ public class ImsManagerTest extends ImsTestBase {
                     });
         } catch (RemoteException e) {}
 
-        TestImsManager mgr = new TestImsManager(mContext, mPhoneId,
+        ImsManager mgr = new ImsManager(mContext, mPhoneId,
                 (context, phoneId, subId, feature, c, r, s) -> mMmTelFeatureConnection,
                 mSubscriptionManagerProxy, mSettingsProxy, mBinderCacheManager);
         ImsFeatureContainer c = new ImsFeatureContainer(mMmTelFeature, mImsConfig, mImsReg,
@@ -1288,24 +1290,5 @@ public class ImsManagerTest extends ImsTestBase {
         }
 
         return key;
-    }
-
-    public class TestImsManager extends ImsManager {
-        private boolean mIsInCarrierRoamingNtnMode;
-
-        public TestImsManager(Context context, int phoneId, MmTelFeatureConnectionFactory factory,
-                SubscriptionManagerProxy subManagerProxy, SettingsProxy settingsProxy,
-                BinderCacheManager binderCacheManager) {
-            super(context, phoneId, factory, subManagerProxy, settingsProxy, binderCacheManager);
-        }
-
-        @Override
-        protected boolean isInCarrierRoamingNtnMode() {
-            return mIsInCarrierRoamingNtnMode;
-        }
-
-        private void setInCarrierRoamingNtnMode(boolean isInCarrierRoamingNtnMode) {
-            mIsInCarrierRoamingNtnMode = isInCarrierRoamingNtnMode;
-        }
     }
 }
