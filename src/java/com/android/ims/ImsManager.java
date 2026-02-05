@@ -1212,9 +1212,7 @@ public class ImsManager implements FeatureUpdates {
                 boolean isNonTtyWifi = isNonTtyOrTtyOnVoWifiEnabled();
                 CapabilityChangeRequest request = new CapabilityChangeRequest();
                 updateVoiceWifiFeatureAndProvisionedValues(request, isNonTtyWifi);
-                if (Flags.separateVtActivationForWifiAndCellular()) {
-                    updateVideoOverWifiFeatureAndProvisionedValues(request, isNonTtyWifi);
-                }
+                updateVideoOverWifiFeatureAndProvisionedValues(request, isNonTtyWifi);
                 changeMmTelCapability(request);
                 // Ensure IMS is on if this setting is updated.
                 turnOnIms();
@@ -1756,9 +1754,7 @@ public class ImsManager implements FeatureUpdates {
         updateVoiceWifiFeatureAndProvisionedValues(request, isNonTtyWifi);
         updateCrossSimFeatureAndProvisionedValues(request);
         updateVideoCallOverCellularFeatureValue(request, isNonTty);
-        if (Flags.separateVtActivationForWifiAndCellular()) {
-            updateVideoOverWifiFeatureAndProvisionedValues(request, isNonTtyWifi);
-        }
+        updateVideoOverWifiFeatureAndProvisionedValues(request, isNonTtyWifi);
         if (com.android.server.telecom.flags.Flags.businessCallComposer()) {
             updateCallComposerFeatureValue(request);
         } else {
