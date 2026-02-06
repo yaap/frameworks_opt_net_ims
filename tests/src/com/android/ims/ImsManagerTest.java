@@ -48,6 +48,7 @@ import android.platform.test.annotations.EnableFlags;
 import android.platform.test.flag.junit.SetFlagsRule;
 import android.telephony.BinderCacheManager;
 import android.telephony.CarrierConfigManager;
+import android.telephony.TelephonyManager;
 import android.telephony.NetworkRegistrationInfo;
 import android.telephony.ServiceState;
 import android.telephony.SubscriptionManager;
@@ -143,6 +144,7 @@ public class ImsManagerTest extends ImsTestBase {
         doReturn(-1).when(mSubscriptionManagerProxy).getIntegerSubscriptionProperty(anyInt(),
                 anyString(), anyInt());
 
+        doReturn(TelephonyManager.SIM_STATE_READY).when(mTelephonyManager).getSimState(anyInt());
 
         setDefaultValues();
 
@@ -1105,7 +1107,6 @@ public class ImsManagerTest extends ImsTestBase {
      */
     @Test
     @SmallTest
-    @EnableFlags(Flags.FLAG_SEPARATE_VT_ACTIVATION_FOR_WIFI_AND_CELLULAR)
     public void testVideoOverWifiCapabilityIsEnabled() throws Exception {
         setWfcEnabledByUser(true);
         doReturn(1 /* enabled */).when(mSubscriptionManagerProxy).getIntegerSubscriptionProperty(
@@ -1154,7 +1155,6 @@ public class ImsManagerTest extends ImsTestBase {
      */
     @Test
     @SmallTest
-    @EnableFlags(Flags.FLAG_SEPARATE_VT_ACTIVATION_FOR_WIFI_AND_CELLULAR)
     public void testVideoOverWifiCapabilityIsDisabledWhenVtIsOff() throws Exception {
         setWfcEnabledByUser(true);
         doReturn(0 /* disabled */).when(mSubscriptionManagerProxy).getIntegerSubscriptionProperty(
