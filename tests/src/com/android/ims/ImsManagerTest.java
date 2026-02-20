@@ -1291,4 +1291,120 @@ public class ImsManagerTest extends ImsTestBase {
 
         return key;
     }
+
+    /**
+     * Tests that when all related features (VoNR) are enabled and
+     * provisioned, the Voice over NR capability is correctly enabled.
+     */
+    @Test
+    @SmallTest
+    public void testVoNrCapabilityIsEnabled() throws Exception {
+        mSetFlagsRule.enableFlags(Flags.FLAG_ENABLE_VONR_CHECK);
+        setWfcEnabledByUser(true);
+        // VoNR settings
+        mBundle.putIntArray(CarrierConfigManager.KEY_CARRIER_NR_AVAILABILITIES_INT_ARRAY,
+                new int[]{CarrierConfigManager.CARRIER_NR_AVAILABILITY_SA});
+        mBundle.putBoolean(CarrierConfigManager.KEY_VONR_ENABLED_BOOL, true);
+
+        // Ensure VoLTE is enabled by platform
+        final Resources res = mContext.getResources();
+        doReturn(true).when(res).getBoolean(
+                com.android.internal.R.bool.config_device_volte_available);
+        mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_AVAILABLE_BOOL, true);
+
+        // Other requirements for VoLTE/VoNR
+        mMmTelProvisioningRequired = true;
+
+        ImsManager imsManager = getImsManagerAndInitProvisionedValues();
+        // Trigger update
+        imsManager.setEnhanced4gLteModeSetting(true);
+
+        ArgumentCaptor<CapabilityChangeRequest> captor =
+                ArgumentCaptor.forClass(CapabilityChangeRequest.class);
+        verify(mMmTelFeatureConnection).changeEnabledCapabilities(captor.capture(), any());
+
+        CapabilityChangeRequest request = captor.getValue();
+        boolean isVoNrEnabled = request.getCapabilitiesToEnable().stream().anyMatch(pair ->
+                pair.getCapability() == MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE
+                        && pair.getRadioTech() == ImsRegistrationImplBase.REGISTRATION_TECH_NR);
+
+        assertTrue("Voice over NR capability should be enabled", isVoNrEnabled);
+    }
+
+    /**
+     * Tests that if the carrier disables the VoNR setting, the
+     * Voice over NR capability is correctly disabled, even if VoLTE is enabled.
+     */
+    @Test
+    @SmallTest
+    public void testVoNrCapabilityIsDisabledWhenVoNrSettingIsOff() throws Exception {
+        mSetFlagsRule.enableFlags(Flags.FLAG_ENABLE_VONR_CHECK);
+        setWfcEnabledByUser(true);
+        // VoNR settings: SA available but VoNR disabled by carrier
+        mBundle.putIntArray(CarrierConfigManager.KEY_CARRIER_NR_AVAILABILITIES_INT_ARRAY,
+                new int[]{CarrierConfigManager.CARRIER_NR_AVAILABILITY_SA});
+        mBundle.putBoolean(CarrierConfigManager.KEY_VONR_ENABLED_BOOL, false);
+
+        // Ensure VoLTE is enabled by platform
+        final Resources res = mContext.getResources();
+        doReturn(true).when(res).getBoolean(
+                com.android.internal.R.bool.config_device_volte_available);
+        mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_AVAILABLE_BOOL, true);
+
+        mMmTelProvisioningRequired = true;
+
+        ImsManager imsManager = getImsManagerAndInitProvisionedValues();
+        // Trigger update
+        imsManager.setEnhanced4gLteModeSetting(true);
+
+        ArgumentCaptor<CapabilityChangeRequest> captor =
+                ArgumentCaptor.forClass(CapabilityChangeRequest.class);
+        verify(mMmTelFeatureConnection).changeEnabledCapabilities(captor.capture(), any());
+
+        CapabilityChangeRequest request = captor.getValue();
+        boolean isVoNrDisabled = request.getCapabilitiesToDisable().stream().anyMatch(pair ->
+                pair.getCapability() == MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE
+                        && pair.getRadioTech() == ImsRegistrationImplBase.REGISTRATION_TECH_NR);
+
+        assertTrue("Voice over NR capability should be disabled", isVoNrDisabled);
+    }
+
+    /**
+     * Tests that if the carrier disables the VoNR setting, the Voice over NR capability is
+     * enabled when the flag is disabled (legacy behavior).
+     */
+    @Test
+    @SmallTest
+    public void testVoNrCapabilityIsEnabledWhenFlagDisabled() throws Exception {
+        mSetFlagsRule.disableFlags(Flags.FLAG_ENABLE_VONR_CHECK);
+        setWfcEnabledByUser(true);
+        // VoNR settings: SA available but VoNR disabled by carrier
+        mBundle.putIntArray(CarrierConfigManager.KEY_CARRIER_NR_AVAILABILITIES_INT_ARRAY,
+                new int[]{CarrierConfigManager.CARRIER_NR_AVAILABILITY_SA});
+        mBundle.putBoolean(CarrierConfigManager.KEY_VONR_ENABLED_BOOL, false);
+
+        // Ensure VoLTE is enabled by platform
+        final Resources res = mContext.getResources();
+        doReturn(true).when(res).getBoolean(
+                com.android.internal.R.bool.config_device_volte_available);
+        mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_AVAILABLE_BOOL, true);
+
+        mMmTelProvisioningRequired = true;
+
+        ImsManager imsManager = getImsManagerAndInitProvisionedValues();
+        // Trigger update
+        imsManager.setEnhanced4gLteModeSetting(true);
+
+        ArgumentCaptor<CapabilityChangeRequest> captor =
+                ArgumentCaptor.forClass(CapabilityChangeRequest.class);
+        verify(mMmTelFeatureConnection).changeEnabledCapabilities(captor.capture(), any());
+
+        CapabilityChangeRequest request = captor.getValue();
+        boolean isVoNrEnabled = request.getCapabilitiesToEnable().stream().anyMatch(pair ->
+                pair.getCapability() == MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE
+                        && pair.getRadioTech() == ImsRegistrationImplBase.REGISTRATION_TECH_NR);
+
+        assertTrue("Voice over NR capability should be enabled when flag is disabled",
+                isVoNrEnabled);
+    }
 }
