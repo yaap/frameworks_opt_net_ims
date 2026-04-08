@@ -1160,6 +1160,14 @@ public class ImsManagerTest extends ImsTestBase {
         doReturn(0 /* disabled */).when(mSubscriptionManagerProxy).getIntegerSubscriptionProperty(
                 anyInt(), eq(SubscriptionManager.VT_IMS_ENABLED), anyInt());
         mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOWIFI_TTY_SUPPORTED_BOOL, true);
+        mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VT_AVAILABLE_BOOL, true);
+
+        final Resources res = mContext.getResources();
+        doReturn(true).when(res).getBoolean(
+                com.android.internal.R.bool.config_device_vt_available);
+        doReturn(true).when(res).getBoolean(
+                com.android.internal.R.bool.config_disable_video_capability_when_wfc_off);
+
         mMmTelProvisioningRequired = true;
 
         ImsManager imsManager = getImsManagerAndInitProvisionedValues();

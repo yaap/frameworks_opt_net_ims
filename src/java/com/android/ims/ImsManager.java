@@ -1934,9 +1934,17 @@ public class ImsManager implements FeatureUpdates {
                     MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO,
                     ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN);
         } else {
-            request.addCapabilitiesToDisableForTech(
-                    MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO,
-                    ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN);
+            boolean disableVideoWhenWfcOff = mContext.getResources().getBoolean(
+                    com.android.internal.R.bool.config_disable_video_capability_when_wfc_off);
+
+            if (disableVideoWhenWfcOff) {
+                request.addCapabilitiesToDisableForTech(
+                        MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO,
+                        ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN);
+            } else {
+                log("updateVideoOverWifiFeatureAndProvisionedValues: Skipped disabling VIDEO"
+                        + " over IWLAN due to device config.");
+            }
         }
     }
 
